@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setMatrixRuntime } from "../runtime.js";
+import { installMatrixTestRuntime } from "../test-runtime.js";
 import {
   credentialsMatchConfig,
   loadMatrixCredentials,
@@ -30,14 +30,7 @@ describe("matrix credentials storage", () => {
   ): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-matrix-creds-"));
     tempDirs.push(dir);
-    setMatrixRuntime({
-      config: {
-        loadConfig: () => cfg,
-      },
-      state: {
-        resolveStateDir: () => dir,
-      },
-    } as never);
+    installMatrixTestRuntime({ cfg, stateDir: dir });
     return dir;
   }
 
@@ -153,6 +146,40 @@ describe("matrix credentials storage", () => {
     expect(loaded).toBeNull();
     expect(fs.existsSync(legacyPath)).toBe(true);
     expect(fs.existsSync(currentPath)).toBe(false);
+  });
+
+  it("migrates legacy credentials to the named account when top-level auth is only a shared default", () => {
+    const stateDir = setupStateDir({
+      channels: {
+        matrix: {
+          accessToken: "shared-token",
+          accounts: {
+            ops: {
+              homeserver: "https://matrix.example.org",
+              accessToken: "ops-token",
+            },
+          },
+        },
+      },
+    });
+    const legacyPath = path.join(stateDir, "credentials", "matrix", "credentials.json");
+    const currentPath = resolveMatrixCredentialsPath({}, "ops");
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({
+        homeserver: "https://matrix.example.org",
+        userId: "@ops:example.org",
+        accessToken: "legacy-token",
+        createdAt: "2026-03-01T10:00:00.000Z",
+      }),
+    );
+
+    const loaded = loadMatrixCredentials({}, "ops");
+
+    expect(loaded?.accessToken).toBe("legacy-token");
+    expect(fs.existsSync(legacyPath)).toBe(false);
+    expect(fs.existsSync(currentPath)).toBe(true);
   });
 
   it("clears both current and legacy credential paths", () => {

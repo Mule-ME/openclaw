@@ -1,26 +1,32 @@
-import bravePlugin from "../../extensions/brave/index.js";
-import firecrawlPlugin from "../../extensions/firecrawl/index.js";
-import googlePlugin from "../../extensions/google/index.js";
-import moonshotPlugin from "../../extensions/moonshot/index.js";
-import perplexityPlugin from "../../extensions/perplexity/index.js";
-import tavilyPlugin from "../../extensions/tavily/index.js";
-import xaiPlugin from "../../extensions/xai/index.js";
-import type { OpenClawPluginApi } from "./types.js";
+import type { OpenClawConfig } from "../config/config.js";
+import { resolveBundledPluginWebSearchProviders } from "./web-search-providers.js";
 
-type RegistrablePlugin = {
-  id: string;
-  register: (api: OpenClawPluginApi) => void;
-};
+function hasConfiguredCredentialValue(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return value !== undefined && value !== null;
+}
 
-export const bundledWebSearchPluginRegistrations: ReadonlyArray<{
-  plugin: RegistrablePlugin;
-  credentialValue: unknown;
-}> = [
-  { plugin: bravePlugin, credentialValue: "BSA-test" },
-  { plugin: firecrawlPlugin, credentialValue: "fc-test" },
-  { plugin: googlePlugin, credentialValue: "AIza-test" },
-  { plugin: moonshotPlugin, credentialValue: "sk-test" },
-  { plugin: perplexityPlugin, credentialValue: "pplx-test" },
-  { plugin: tavilyPlugin, credentialValue: "tvly-test" },
-  { plugin: xaiPlugin, credentialValue: "xai-test" },
-];
+export function hasBundledWebSearchCredential(params: {
+  config: OpenClawConfig;
+  env?: NodeJS.ProcessEnv;
+  searchConfig?: Record<string, unknown>;
+}): boolean {
+  const searchConfig =
+    params.searchConfig ??
+    (params.config.tools?.web?.search as Record<string, unknown> | undefined);
+  return resolveBundledPluginWebSearchProviders({
+    config: params.config,
+    env: params.env,
+    bundledAllowlistCompat: true,
+  }).some((provider) => {
+    const configuredCredential =
+      provider.getConfiguredCredentialValue?.(params.config) ??
+      provider.getCredentialValue(searchConfig);
+    if (hasConfiguredCredentialValue(configuredCredential)) {
+      return true;
+    }
+    return provider.envVars.some((envVar) => hasConfiguredCredentialValue(params.env?.[envVar]));
+  });
+}

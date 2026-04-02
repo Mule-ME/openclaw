@@ -1,14 +1,9 @@
-import { bundledWebSearchPluginRegistrations } from "./bundled-web-search-registry.js";
-import { capturePluginRegistration } from "./captured-registration.js";
+import { BUNDLED_WEB_SEARCH_PLUGIN_IDS } from "./bundled-capability-metadata.js";
+import { loadBundledCapabilityRuntimeRegistry } from "./bundled-capability-runtime.js";
+import { resolveBundledWebSearchPluginId as resolveBundledWebSearchPluginIdFromMap } from "./bundled-web-search-provider-ids.js";
 import type { PluginLoadOptions } from "./loader.js";
 import { loadPluginManifestRegistry } from "./manifest-registry.js";
 import type { PluginWebSearchProviderEntry } from "./types.js";
-
-export const BUNDLED_WEB_SEARCH_PLUGIN_IDS = bundledWebSearchPluginRegistrations
-  .map((entry) => entry.plugin.id)
-  .toSorted((left, right) => left.localeCompare(right));
-
-const bundledWebSearchPluginIdSet = new Set<string>(BUNDLED_WEB_SEARCH_PLUGIN_IDS);
 
 type BundledWebSearchProviderEntry = PluginWebSearchProviderEntry & { pluginId: string };
 
@@ -16,12 +11,13 @@ let bundledWebSearchProvidersCache: BundledWebSearchProviderEntry[] | null = nul
 
 function loadBundledWebSearchProviders(): BundledWebSearchProviderEntry[] {
   if (!bundledWebSearchProvidersCache) {
-    bundledWebSearchProvidersCache = bundledWebSearchPluginRegistrations.flatMap(({ plugin }) =>
-      capturePluginRegistration(plugin).webSearchProviders.map((provider) => ({
-        ...provider,
-        pluginId: plugin.id,
-      })),
-    );
+    bundledWebSearchProvidersCache = loadBundledCapabilityRuntimeRegistry({
+      pluginIds: BUNDLED_WEB_SEARCH_PLUGIN_IDS,
+      pluginSdkResolution: "dist",
+    }).webSearchProviders.map((entry) => ({
+      pluginId: entry.pluginId,
+      ...entry.provider,
+    }));
   }
   return bundledWebSearchProvidersCache;
 }
@@ -31,15 +27,21 @@ export function resolveBundledWebSearchPluginIds(params: {
   workspaceDir?: string;
   env?: PluginLoadOptions["env"];
 }): string[] {
-  const registry = loadPluginManifestRegistry({
+  const bundledWebSearchPluginIdSet = new Set<string>(BUNDLED_WEB_SEARCH_PLUGIN_IDS);
+  return loadPluginManifestRegistry({
     config: params.config,
     workspaceDir: params.workspaceDir,
     env: params.env,
-  });
-  return registry.plugins
-    .filter((plugin) => plugin.origin === "bundled" && bundledWebSearchPluginIdSet.has(plugin.id))
+  })
+    .plugins.filter(
+      (plugin) => plugin.origin === "bundled" && bundledWebSearchPluginIdSet.has(plugin.id),
+    )
     .map((plugin) => plugin.id)
     .toSorted((left, right) => left.localeCompare(right));
+}
+
+export function listBundledWebSearchPluginIds(): string[] {
+  return [...BUNDLED_WEB_SEARCH_PLUGIN_IDS];
 }
 
 export function listBundledWebSearchProviders(): PluginWebSearchProviderEntry[] {
@@ -49,8 +51,5 @@ export function listBundledWebSearchProviders(): PluginWebSearchProviderEntry[] 
 export function resolveBundledWebSearchPluginId(
   providerId: string | undefined,
 ): string | undefined {
-  if (!providerId) {
-    return undefined;
-  }
-  return loadBundledWebSearchProviders().find((provider) => provider.id === providerId)?.pluginId;
+  return resolveBundledWebSearchPluginIdFromMap(providerId);
 }
