@@ -105,8 +105,9 @@ export function resolvePreferredServerChatModel(
     return { value: "", source: "empty", reason: "empty" };
   }
 
+  const trimmedProvider = provider?.trim();
   const overrideResolution = resolveChatModelOverride(
-    createChatModelOverride(trimmedModel),
+    trimmedProvider ? { kind: "raw", value: trimmedModel } : createChatModelOverride(trimmedModel),
     catalog,
   );
   if (overrideResolution.source === "qualified" || overrideResolution.source === "catalog") {
@@ -114,7 +115,7 @@ export function resolvePreferredServerChatModel(
   }
 
   return {
-    value: resolveServerChatModelValue(trimmedModel, provider),
+    value: resolveServerChatModelValue(trimmedModel, trimmedProvider),
     source: "server",
     reason: overrideResolution.reason,
   };
@@ -140,10 +141,72 @@ export function formatChatModelDisplay(value: string): string {
   return `${trimmed.slice(separator + 1)} · ${trimmed.slice(0, separator)}`;
 }
 
-export function buildChatModelOption(entry: ModelCatalogEntry): { value: string; label: string } {
+function formatRawCatalogLabel(entry: ModelCatalogEntry): string {
+  const provider = entry.provider?.trim();
+  return provider ? `${entry.id} · ${provider}` : entry.id;
+}
+
+function hasCatalogNameCollision(entry: ModelCatalogEntry, catalog: ModelCatalogEntry[]): boolean {
+  const name = entry.name.trim();
+  if (!name) {
+    return false;
+  }
+
+  const normalizedName = name.toLowerCase();
+  const entryValue = buildQualifiedChatModelValue(entry.id, entry.provider).trim().toLowerCase();
+  for (const candidate of catalog) {
+    if (candidate.name.trim().toLowerCase() !== normalizedName) {
+      continue;
+    }
+    const candidateValue = buildQualifiedChatModelValue(candidate.id, candidate.provider)
+      .trim()
+      .toLowerCase();
+    if (candidateValue !== entryValue) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function formatCatalogEntryDisplay(entry: ModelCatalogEntry, catalog: ModelCatalogEntry[]): string {
+  const name = entry.name.trim();
+  if (!name) {
+    return formatRawCatalogLabel(entry);
+  }
+
+  if (!hasCatalogNameCollision(entry, catalog)) {
+    return name;
+  }
+
+  const provider = entry.provider?.trim();
+  return provider ? `${name} · ${provider}` : `${name} · ${entry.id}`;
+}
+
+export function formatCatalogChatModelDisplay(value: string, catalog: ModelCatalogEntry[]): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const normalized = trimmed.toLowerCase();
+  for (const entry of catalog) {
+    const candidate = buildQualifiedChatModelValue(entry.id, entry.provider).trim().toLowerCase();
+    if (candidate !== normalized) {
+      continue;
+    }
+    return formatCatalogEntryDisplay(entry, catalog);
+  }
+
+  return formatChatModelDisplay(trimmed);
+}
+
+export function buildChatModelOption(
+  entry: ModelCatalogEntry,
+  catalog: ModelCatalogEntry[] = [entry],
+): { value: string; label: string } {
   const provider = entry.provider?.trim();
   return {
     value: buildQualifiedChatModelValue(entry.id, provider),
-    label: provider ? `${entry.id} · ${provider}` : entry.id,
+    label: formatCatalogEntryDisplay(entry, catalog),
   };
 }
