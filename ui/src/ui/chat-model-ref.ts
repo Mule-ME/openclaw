@@ -106,10 +106,18 @@ export function resolvePreferredServerChatModel(
   }
 
   const trimmedProvider = provider?.trim();
-  if (
-    trimmedProvider &&
-    trimmedModel.toLowerCase().startsWith(`${trimmedProvider.toLowerCase()}/`)
-  ) {
+
+  if (trimmedModel.includes("/")) {
+    if (trimmedProvider) {
+      const nestedRawResolution = resolveChatModelOverride(
+        { kind: "raw", value: trimmedModel },
+        catalog,
+      );
+      if (nestedRawResolution.source === "catalog") {
+        return nestedRawResolution;
+      }
+    }
+
     return { value: trimmedModel, source: "qualified" };
   }
 

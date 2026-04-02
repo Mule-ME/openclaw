@@ -190,4 +190,13 @@ describe("chat-model-ref helpers", () => {
       source: "qualified",
     });
   });
+
+  it("preserves already-qualified server model values when the provider is stale", () => {
+    expect(
+      resolvePreferredServerChatModel("openai/gpt-5-mini", "zai", [OPENAI_GPT5_MINI_MODEL]),
+    ).toEqual({
+      value: "openai/gpt-5-mini",
+      source: "qualified",
+    });
+  });
 });
