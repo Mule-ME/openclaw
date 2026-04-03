@@ -15,7 +15,10 @@ import {
   isSubagentSessionKey,
   parseAgentSessionKey,
 } from "../../../../src/routing/session-key.js";
-import { createChatModelOverride, resolvePreferredServerChatModel } from "../chat-model-ref.ts";
+import {
+  createChatModelOverride,
+  resolvePreferredServerChatModelValue,
+} from "../chat-model-ref.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
   AgentsListResult,
@@ -177,11 +180,11 @@ async function executeModel(
         ? Promise.resolve(modelCatalog)
         : loadModelCatalog(client, { allowFailure: true }),
     ]);
-    const resolvedValue = resolvePreferredServerChatModel(
+    const resolvedValue = resolvePreferredServerChatModelValue(
       patched.resolved?.model ?? args.trim(),
       patched.resolved?.modelProvider,
       resolvedModelCatalog,
-    ).value;
+    );
     return {
       content: `Model set to \`${args.trim()}\`.`,
       action: "refresh",

@@ -5,9 +5,8 @@ import {
   formatCatalogChatModelDisplay,
   formatChatModelDisplay,
   normalizeChatModelOverrideValue,
-  resolveChatModelOverride,
-  resolvePreferredServerChatModel,
   resolveServerChatModelValue,
+  resolvePreferredServerChatModelValue,
 } from "./chat-model-ref.ts";
 import {
   createAmbiguousModelCatalog,
@@ -138,80 +137,55 @@ describe("chat-model-ref helpers", () => {
     expect(resolveServerChatModelValue("alias-only", null)).toBe("alias-only");
   });
 
-  it("reports the override resolution source for unique catalog matches", () => {
-    expect(resolveChatModelOverride(createChatModelOverride("gpt-5-mini"), catalog)).toEqual({
-      value: "openai/gpt-5-mini",
-      source: "catalog",
-    });
-  });
-
-  it("reports ambiguous raw overrides without guessing a provider", () => {
+  it("keeps ambiguous raw overrides without guessing a provider", () => {
     expect(
-      resolveChatModelOverride(
+      normalizeChatModelOverrideValue(
         createChatModelOverride("gpt-5-mini"),
         createAmbiguousModelCatalog("gpt-5-mini", "openai", "openrouter"),
       ),
-    ).toEqual({
-      value: "gpt-5-mini",
-      source: "raw",
-      reason: "ambiguous",
-    });
+    ).toBe("gpt-5-mini");
   });
 
   it("uses the recorded server provider when it is present", () => {
     expect(
-      resolvePreferredServerChatModel("deepseek-chat", "deepseek", [DEEPSEEK_CHAT_MODEL]),
-    ).toEqual({
-      value: "deepseek/deepseek-chat",
-      source: "server",
-    });
+      resolvePreferredServerChatModelValue("deepseek-chat", "deepseek", [DEEPSEEK_CHAT_MODEL]),
+    ).toBe("deepseek/deepseek-chat");
   });
 
   it("falls back to the server provider when the catalog misses or is ambiguous", () => {
-    expect(resolvePreferredServerChatModel("gpt-5-mini", "openai", [])).toEqual({
-      value: "openai/gpt-5-mini",
-      source: "server",
-    });
+    expect(resolvePreferredServerChatModelValue("gpt-5-mini", "openai", [])).toBe(
+      "openai/gpt-5-mini",
+    );
     expect(
-      resolvePreferredServerChatModel(
+      resolvePreferredServerChatModelValue(
         "gpt-5-mini",
         "openai",
         createAmbiguousModelCatalog("gpt-5-mini", "openai", "openrouter"),
       ),
-    ).toEqual({
-      value: "openai/gpt-5-mini",
-      source: "server",
-    });
+    ).toBe("openai/gpt-5-mini");
   });
 
   it("qualifies slash-containing server model ids with the recorded provider", () => {
     expect(
-      resolvePreferredServerChatModel("moonshotai/kimi-k2.5", "nvidia", [
+      resolvePreferredServerChatModelValue("moonshotai/kimi-k2.5", "nvidia", [
         {
           id: "moonshotai/kimi-k2.5",
           name: "Kimi K2.5 (NVIDIA)",
           provider: "nvidia",
         },
       ]),
-    ).toEqual({
-      value: "nvidia/moonshotai/kimi-k2.5",
-      source: "server",
-    });
+    ).toBe("nvidia/moonshotai/kimi-k2.5");
   });
 
   it("preserves already-qualified server model values when the provider matches", () => {
     expect(
-      resolvePreferredServerChatModel("openai/gpt-5-mini", "openai", [OPENAI_GPT5_MINI_MODEL]),
-    ).toEqual({
-      value: "openai/gpt-5-mini",
-      source: "qualified",
-    });
+      resolvePreferredServerChatModelValue("openai/gpt-5-mini", "openai", [OPENAI_GPT5_MINI_MODEL]),
+    ).toBe("openai/gpt-5-mini");
   });
 
   it("uses catalog resolution for provider-less raw server model values", () => {
-    expect(resolvePreferredServerChatModel("gpt-5-mini", null, [OPENAI_GPT5_MINI_MODEL])).toEqual({
-      value: "openai/gpt-5-mini",
-      source: "catalog",
-    });
+    expect(resolvePreferredServerChatModelValue("gpt-5-mini", null, [OPENAI_GPT5_MINI_MODEL])).toBe(
+      "openai/gpt-5-mini",
+    );
   });
 });

@@ -10,16 +10,6 @@ export type ChatModelOverride =
       value: string;
     };
 
-export type ChatModelResolutionSource = "empty" | "qualified" | "catalog" | "raw" | "server";
-
-export type ChatModelResolutionReason = "empty" | "missing" | "ambiguous";
-
-export type ChatModelResolution = {
-  value: string;
-  source: ChatModelResolutionSource;
-  reason?: ChatModelResolutionReason;
-};
-
 export function buildQualifiedChatModelValue(model: string, provider?: string | null): string {
   const trimmedModel = model.trim();
   if (!trimmedModel) {
@@ -44,22 +34,15 @@ export function normalizeChatModelOverrideValue(
   override: ChatModelOverride | null | undefined,
   catalog: ModelCatalogEntry[],
 ): string {
-  return resolveChatModelOverride(override, catalog).value;
-}
-
-export function resolveChatModelOverride(
-  override: ChatModelOverride | null | undefined,
-  catalog: ModelCatalogEntry[],
-): ChatModelResolution {
   if (!override) {
-    return { value: "", source: "empty", reason: "empty" };
+    return "";
   }
   const trimmed = override?.value.trim();
   if (!trimmed) {
-    return { value: "", source: "empty", reason: "empty" };
+    return "";
   }
   if (override.kind === "qualified") {
-    return { value: trimmed, source: "qualified" };
+    return trimmed;
   }
 
   let matchedValue = "";
@@ -73,13 +56,10 @@ export function resolveChatModelOverride(
       continue;
     }
     if (matchedValue.toLowerCase() !== candidate.toLowerCase()) {
-      return { value: trimmed, source: "raw", reason: "ambiguous" };
+      return trimmed;
     }
   }
-  if (matchedValue) {
-    return { value: matchedValue, source: "catalog" };
-  }
-  return { value: trimmed, source: "raw", reason: "missing" };
+  return matchedValue || trimmed;
 }
 
 export function resolveServerChatModelValue(
@@ -103,51 +83,26 @@ export function resolveServerChatModelValue(
     : buildQualifiedChatModelValue(trimmedModel, trimmedProvider);
 }
 
-export function resolvePreferredServerChatModel(
-  model: string | null | undefined,
-  provider: string | null | undefined,
-  catalog: ModelCatalogEntry[],
-): ChatModelResolution {
-  if (typeof model !== "string") {
-    return { value: "", source: "empty", reason: "empty" };
-  }
-  const trimmedModel = model.trim();
-  if (!trimmedModel) {
-    return { value: "", source: "empty", reason: "empty" };
-  }
-
-  const trimmedProvider = provider?.trim();
-
-  if (trimmedProvider) {
-    return {
-      value: resolveServerChatModelValue(trimmedModel, trimmedProvider),
-      source: trimmedModel.toLowerCase().startsWith(`${trimmedProvider.toLowerCase()}/`)
-        ? "qualified"
-        : "server",
-    };
-  }
-
-  const overrideResolution = resolveChatModelOverride(
-    createChatModelOverride(trimmedModel),
-    catalog,
-  );
-  if (overrideResolution.source === "qualified" || overrideResolution.source === "catalog") {
-    return overrideResolution;
-  }
-
-  return {
-    value: trimmedModel,
-    source: trimmedModel.includes("/") ? "qualified" : "raw",
-    reason: overrideResolution.reason,
-  };
-}
-
 export function resolvePreferredServerChatModelValue(
   model: string | null | undefined,
   provider: string | null | undefined,
   catalog: ModelCatalogEntry[],
 ): string {
-  return resolvePreferredServerChatModel(model, provider, catalog).value;
+  if (typeof model !== "string") {
+    return "";
+  }
+  const trimmedModel = model.trim();
+  if (!trimmedModel) {
+    return "";
+  }
+
+  const trimmedProvider = provider?.trim();
+
+  if (trimmedProvider) {
+    return resolveServerChatModelValue(trimmedModel, trimmedProvider);
+  }
+
+  return normalizeChatModelOverrideValue(createChatModelOverride(trimmedModel), catalog);
 }
 
 export function formatChatModelDisplay(value: string): string {
