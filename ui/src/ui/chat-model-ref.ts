@@ -89,7 +89,18 @@ export function resolveServerChatModelValue(
   if (typeof model !== "string") {
     return "";
   }
-  return buildQualifiedChatModelValue(model, provider);
+  const trimmedModel = model.trim();
+  if (!trimmedModel) {
+    return "";
+  }
+  const trimmedProvider = provider?.trim();
+  if (!trimmedProvider) {
+    return trimmedModel;
+  }
+  const providerPrefix = `${trimmedProvider.toLowerCase()}/`;
+  return trimmedModel.toLowerCase().startsWith(providerPrefix)
+    ? trimmedModel
+    : buildQualifiedChatModelValue(trimmedModel, trimmedProvider);
 }
 
 export function resolvePreferredServerChatModel(
@@ -107,22 +118,17 @@ export function resolvePreferredServerChatModel(
 
   const trimmedProvider = provider?.trim();
 
-  if (trimmedModel.includes("/")) {
-    if (trimmedProvider) {
-      const nestedRawResolution = resolveChatModelOverride(
-        { kind: "raw", value: trimmedModel },
-        catalog,
-      );
-      if (nestedRawResolution.source === "catalog") {
-        return nestedRawResolution;
-      }
-    }
-
-    return { value: trimmedModel, source: "qualified" };
+  if (trimmedProvider) {
+    return {
+      value: resolveServerChatModelValue(trimmedModel, trimmedProvider),
+      source: trimmedModel.toLowerCase().startsWith(`${trimmedProvider.toLowerCase()}/`)
+        ? "qualified"
+        : "server",
+    };
   }
 
   const overrideResolution = resolveChatModelOverride(
-    trimmedProvider ? { kind: "raw", value: trimmedModel } : createChatModelOverride(trimmedModel),
+    createChatModelOverride(trimmedModel),
     catalog,
   );
   if (overrideResolution.source === "qualified" || overrideResolution.source === "catalog") {
@@ -130,8 +136,8 @@ export function resolvePreferredServerChatModel(
   }
 
   return {
-    value: resolveServerChatModelValue(trimmedModel, trimmedProvider),
-    source: "server",
+    value: trimmedModel,
+    source: trimmedModel.includes("/") ? "qualified" : "raw",
     reason: overrideResolution.reason,
   };
 }
@@ -161,6 +167,10 @@ function formatRawCatalogLabel(entry: ModelCatalogEntry): string {
   return provider ? `${entry.id} · ${provider}` : entry.id;
 }
 
+function resolveCatalogDisplayName(entry: ModelCatalogEntry): string {
+  return entry.alias?.trim() || entry.name.trim();
+}
+
 function createQualifiedCatalogKey(entry: ModelCatalogEntry): string {
   return buildQualifiedChatModelValue(entry.id, entry.provider).trim().toLowerCase();
 }
@@ -176,7 +186,7 @@ export function buildCatalogDisplayLookup(catalog: ModelCatalogEntry[]): Map<str
   const nameProviderToValues = new Map<string, Set<string>>();
 
   for (const entry of catalog) {
-    const name = entry.name.trim();
+    const name = resolveCatalogDisplayName(entry);
     if (!name) {
       continue;
     }
@@ -197,7 +207,7 @@ export function buildCatalogDisplayLookup(catalog: ModelCatalogEntry[]): Map<str
   const displayLookup = new Map<string, string>();
   for (const entry of catalog) {
     const qualifiedKey = createQualifiedCatalogKey(entry);
-    const name = entry.name.trim();
+    const name = resolveCatalogDisplayName(entry);
     if (!name) {
       displayLookup.set(qualifiedKey, formatRawCatalogLabel(entry));
       continue;

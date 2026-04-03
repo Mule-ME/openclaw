@@ -11,14 +11,14 @@ import {
 } from "./chat-model.test-helpers.ts";
 
 describe("chat-model-select-state", () => {
-  it("prefers the catalog provider when the active session provider is stale", () => {
+  it("uses the server-qualified value when the active session provider is present", () => {
     const state = {
       sessionKey: "main",
       chatModelOverrides: {},
       chatModelCatalog: createModelCatalog(DEEPSEEK_CHAT_MODEL),
       sessionsResult: createSessionsListResult({
         model: "deepseek-chat",
-        modelProvider: "zai",
+        modelProvider: "deepseek",
       }),
     };
 
@@ -62,6 +62,7 @@ describe("chat-model-select-state", () => {
       chatModelOverrides: {},
       chatModelCatalog: createModelCatalog({
         id: "moonshotai/kimi-k2.5",
+        alias: "Kimi K2.5 (NVIDIA)",
         name: "Kimi K2.5 (NVIDIA)",
         provider: "nvidia",
       }),

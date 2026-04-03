@@ -30,6 +30,23 @@ describe("chat-model-ref helpers", () => {
     });
   });
 
+  it("prefers alias over name for picker labels", () => {
+    const aliasedModel = {
+      id: "moonshotai/kimi-k2.5",
+      alias: "Kimi K2.5 (NVIDIA)",
+      name: "Kimi K2.5",
+      provider: "nvidia",
+    };
+
+    expect(buildChatModelOption(aliasedModel, [aliasedModel])).toEqual({
+      value: "nvidia/moonshotai/kimi-k2.5",
+      label: "Kimi K2.5 (NVIDIA)",
+    });
+    expect(formatCatalogChatModelDisplay("nvidia/moonshotai/kimi-k2.5", [aliasedModel])).toBe(
+      "Kimi K2.5 (NVIDIA)",
+    );
+  });
+
   it("uses friendly catalog names for qualified nested model ids", () => {
     const nestedModel = {
       id: "moonshotai/kimi-k2.5",
@@ -141,10 +158,12 @@ describe("chat-model-ref helpers", () => {
     });
   });
 
-  it("prefers the catalog provider over a stale server provider when the match is unique", () => {
-    expect(resolvePreferredServerChatModel("deepseek-chat", "zai", [DEEPSEEK_CHAT_MODEL])).toEqual({
+  it("uses the recorded server provider when it is present", () => {
+    expect(
+      resolvePreferredServerChatModel("deepseek-chat", "deepseek", [DEEPSEEK_CHAT_MODEL]),
+    ).toEqual({
       value: "deepseek/deepseek-chat",
-      source: "catalog",
+      source: "server",
     });
   });
 
@@ -152,7 +171,6 @@ describe("chat-model-ref helpers", () => {
     expect(resolvePreferredServerChatModel("gpt-5-mini", "openai", [])).toEqual({
       value: "openai/gpt-5-mini",
       source: "server",
-      reason: "missing",
     });
     expect(
       resolvePreferredServerChatModel(
@@ -163,11 +181,10 @@ describe("chat-model-ref helpers", () => {
     ).toEqual({
       value: "openai/gpt-5-mini",
       source: "server",
-      reason: "ambiguous",
     });
   });
 
-  it("does not treat slash-containing server model ids as already provider-qualified", () => {
+  it("qualifies slash-containing server model ids with the recorded provider", () => {
     expect(
       resolvePreferredServerChatModel("moonshotai/kimi-k2.5", "nvidia", [
         {
@@ -178,7 +195,7 @@ describe("chat-model-ref helpers", () => {
       ]),
     ).toEqual({
       value: "nvidia/moonshotai/kimi-k2.5",
-      source: "catalog",
+      source: "server",
     });
   });
 
@@ -191,12 +208,10 @@ describe("chat-model-ref helpers", () => {
     });
   });
 
-  it("preserves already-qualified server model values when the provider is stale", () => {
-    expect(
-      resolvePreferredServerChatModel("openai/gpt-5-mini", "zai", [OPENAI_GPT5_MINI_MODEL]),
-    ).toEqual({
+  it("uses catalog resolution for provider-less raw server model values", () => {
+    expect(resolvePreferredServerChatModel("gpt-5-mini", null, [OPENAI_GPT5_MINI_MODEL])).toEqual({
       value: "openai/gpt-5-mini",
-      source: "qualified",
+      source: "catalog",
     });
   });
 });
